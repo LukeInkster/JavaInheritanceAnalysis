@@ -1,0 +1,11 @@
+class:  classA{privateintx;privateAme;publicintf(intg){returng+1;}publicinth(inti){returnf(i);}publicA(intjjj){x=jjj;me=this;}publicA(intj,intk){x=f(j);me=null;}}
+feild:    intx;
+feild:    Ame;
+methd:    intf(intg){returng+1;}
+methd:    inth(inti){returnf(i);}
+c-tor:    A(intjjj){x=jjj;me=this;}
+stmnt:      x=jjj		PASS
+stmnt:      me=this		FAIL
+c-tor:    A(intj,intk){x=f(j);me=null;}
+stmnt:      x=f(j)		FAIL
+stmnt:      me=null		PASS

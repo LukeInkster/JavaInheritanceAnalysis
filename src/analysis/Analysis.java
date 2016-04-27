@@ -66,7 +66,7 @@ public class Analysis {
 				listStatements(ctorDecl, indent + "  ");
 			} else if (c instanceof FieldDeclarationContext){
 				FieldDeclarationContext fieldDecl = (FieldDeclarationContext) c;
-				System.out.println("feild:" + indent + fieldDecl.getText());
+				System.out.println("field:" + indent + fieldDecl.getText());
 			}
 			listSubDeclarations(c, indent);
 		}
