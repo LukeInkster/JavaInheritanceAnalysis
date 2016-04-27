@@ -1,4 +1,8 @@
 package analysis;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -8,7 +12,6 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNodeImpl;
-import org.antlr.v4.runtime.tree.Tree;
 
 import antlr.JavaLexer;
 import antlr.JavaParser;
@@ -30,15 +33,8 @@ public class Analysis {
 	private static final String PASS = "\t\tPASS";
 	private static final String FAIL = "\t\tFAIL";
 
-	public static void main(String[] args) {
-		CharStream in = new ANTLRInputStream("public class A {"
-				+ "private int x;"
-				+ "private A me;"
-				+ "public int f(int g){return g+1;}"
-				+ "public int h(int i){return f(i);}"
-				+ "public A(int jjj){x = jjj; me = this;}"
-				+ "public A(int j, int k){x = f(j); me = null;}"
-				+ "}");
+	public static void main(String[] args) throws FileNotFoundException, IOException {
+		CharStream in = new ANTLRInputStream(new FileReader(new File("data/example.txt")));
         JavaLexer lexer = new JavaLexer(in);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         JavaParser parser = new JavaParser(tokens);
