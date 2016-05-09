@@ -1,0 +1,50 @@
+package analysis;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import antlr.JavaParser.CompilationUnitContext;
+
+public class Project implements Iterable<CompilationUnitContext>{
+	public final Map<Path, CompilationUnitContext> compilationUnits;
+	public final Set<String> extendedClasses = new HashSet<String>();
+	
+	public static Project from(Path path){
+		try {
+			return new Project(
+					Files
+					.walk(path)
+					.filter(f -> f.toString().endsWith(".java"))
+					.map(f -> new Pair<Path, CompilationUnitContext>(f, Analysis.getCompilationUnit(f)))
+					.filter(pair -> pair.second() != null)
+					.collect(Collectors.toMap(pair -> pair.first(), pair -> pair.second()))
+				);
+		} catch (IOException e) {
+			return null;
+		}
+	}
+	
+	public Stream<CompilationUnitContext> streamUnits(){
+		return compilationUnits.values().stream();
+	}
+	
+	public Stream<Map.Entry<Path, CompilationUnitContext>> streamEntries(){
+		return compilationUnits.entrySet().stream();
+	}
+	
+	public Project(Map<Path, CompilationUnitContext> compilationUnits){
+		this.compilationUnits = compilationUnits;
+	}
+	
+	@Override
+	public Iterator<CompilationUnitContext> iterator() {
+		return compilationUnits.values().iterator();
+	}
+}
