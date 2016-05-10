@@ -1,6 +1,7 @@
 package analysis;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,34 +27,44 @@ import antlr.JavaParser.ConstructorBodyContext;
 import antlr.JavaParser.ConstructorDeclarationContext;
 import antlr.JavaParser.ExpressionContext;
 import antlr.JavaParser.FieldDeclarationContext;
+import antlr.JavaParser.LocalVariableDeclarationStatementContext;
 import antlr.JavaParser.MethodDeclarationContext;
 import antlr.JavaParser.PrimaryContext;
 import antlr.JavaParser.StatementContext;
 import antlr.JavaParser.StatementExpressionContext;
 
 public class Analysis {
-	private static final int limit = 20;
+	private static final int limit = 30;
 	private static final String PASS = "\t\tPASS";
 	private static final String FAIL = "\t\tFAIL";
 	private static int breaks = 0;
+	private static int classCount = 0;
+	private static PrintWriter writer;
 
 	public static void main(String[] args) throws IOException {
 		List<Path> projects = getProjects("/Users/lukeinkster/Documents/QualitasCorpus-20130901r/Systems");
 		System.out.println("Found " + projects.size() + " projects.");
+		writer = new PrintWriter("output/failures.txt", "UTF-8");
+		
+		Project p = Project.from(new File("data/selfMethodCalls.txt"));
+		System.out.println(getFailures(p.singleUnit()).count());
+		System.out.println(getFailures(p.singleUnit()).map(x -> x.getText()).collect(Collectors.toList()));
 		
 		printTotalFileCount(projects);
 		printFailures(projects);
-		countExtends(projects);
+		System.out.println(classCount + " total classes");
+//		countExtends(projects);
+//		countExtended(projects);
 	}
 	
 	private static void printTotalFileCount(List<Path> projects) throws IOException{
 		 long fileCount = projects
-				.stream()
-				.map(path -> Project.from(path))
-				.mapToLong(project -> project
-					.streamUnits()
-					.count()
-				).sum();
+			.stream()
+			.map(path -> Project.from(path))
+			.mapToLong(project -> project
+				.streamUnits()
+				.count()
+			).sum();
 		
 		System.out.println(fileCount + " total files");
 	}
@@ -66,16 +77,48 @@ public class Analysis {
 			.limit(limit)
 			.collect(Collectors.toList());
 	}
+	
+	private static void countExtended(List<Path> projects){
+		int extended = projects
+			.stream()
+			.map(path -> Project.from(path))
+			.mapToInt(project -> countExtended(project))
+			.sum();
+		
+		System.out.println(extended + " classes extended");
+	}
+
+	private static int countExtended(Project project) {
+		for (CompilationUnitContext tree : project.compilationUnits.values()){
+			findExtended(tree, project);
+		}
+		return project.extendedClasses.size();
+	}
+
+	private static void findExtended(ParseTree tree, Project project) {
+		for (int i=0; i<tree.getChildCount(); i++){
+			ParseTree c = tree.getChild(i);
+			if (c instanceof ClassDeclarationContext){
+				ClassDeclarationContext classDecl = (ClassDeclarationContext) c;
+				for (int j = 0; j < classDecl.getChildCount(); j++){
+					if (classDecl.getChild(j).getText().equals("extends")){
+						project.extendedClasses.add(classDecl.getChild(j+1).getText());
+					}
+				}
+			}
+			else findExtended(c, project);
+		}
+	}
 
 	private static void countExtends(List<Path> projects) throws IOException {
-		long extendsCount = 0;
-
-		for (Path path : projects){
-			extendsCount += Project.from(path)
+		long extendsCount = projects
+			.stream()
+			.map(path -> Project.from(path))
+			.mapToLong(project -> project
 				.streamUnits()
 				.filter(cu -> extendsSomething(cu))
-				.count();
-		}
+				.count()
+			).sum();
 		
 		System.out.println(extendsCount + " classes extend another class");
 		//extendsSomething(compilationUnit(new File("data/extendsB.txt")));
@@ -84,8 +127,9 @@ public class Analysis {
 	private static void printFailures(List<Path> projects) throws IOException {
 		List<FailureSet> failures = new ArrayList<FailureSet>();
 		for (Path path : projects){
+			Project project = Project.from(path);
 			failures.addAll(
-					Project.from(path)
+					project
 					.streamEntries()
 					.map(entry -> new FailureSet(entry.getKey(), getFailures(entry.getValue())))
 					.filter(fs -> !fs.failures.isEmpty())
@@ -95,7 +139,7 @@ public class Analysis {
 
 		//System.out.println("Parser broke on " + breaks + " files");
 		System.out.println("Found " + failures.size() + " failures:");
-		failures.forEach(f -> System.out.println(f));
+		failures.forEach(f -> writer.println(f));
 	}
 
 	private static boolean extendsSomething(ParseTree tree) {
@@ -125,14 +169,14 @@ public class Analysis {
 	}
 
 	private static Stream<ExpressionContext> getFailures(CompilationUnitContext compilationUnit) {
-		try {
+		//try {
 	        List<ExpressionContext> failures = listClasses(compilationUnit, "");
 	        return failures.stream();
-		}
-		catch (Exception e) { 
-			breaks++;
-			return Stream.empty(); 
-		}
+//		}
+//		catch (Exception e) { 
+//			breaks++;
+//			return Stream.empty(); 
+//		}
 	}
 
 	public static List<ExpressionContext> listClasses(ParseTree tree, String indent){
@@ -140,6 +184,7 @@ public class Analysis {
 		for (int i=0; i<tree.getChildCount(); i++){
 			ParseTree c = tree.getChild(i);
 			if (c instanceof ClassDeclarationContext){
+				classCount++;
 				ClassDeclarationContext classDecl = (ClassDeclarationContext) c;
 				print("class:" + indent + classDecl.getText());
 				failures.addAll(listSubDeclarations(classDecl, indent + "  "));
@@ -191,21 +236,38 @@ public class Analysis {
 					failures.add(expr);
 					print("stmnt:" + indent + expr.getText() + FAIL);
 				} else if (rhs.getChild(0) instanceof ExpressionContext
-						&& isSelfMethodCall((ExpressionContext)rhs.getChild(0))){
+						&& isSelfMethodAssignment((ExpressionContext)rhs.getChild(0))){
 					failures.add(expr);
 					print("stmnt:" + indent + expr.getText() + FAIL);
 				}
 				else print("stmnt:" + indent + expr.getText() + PASS);
 			}
-			else print("stmnt:" + indent + expr.getText() + PASS);
+			else if (isSelfMethodCall(expr)) {
+				failures.add(expr);
+			} else print("stmnt:" + indent + expr.getText() + PASS);
 		}
 		return failures;
 	}
 
-	private static boolean isSelfMethodCall(ExpressionContext expr) {
-		return expr.getChild(0) instanceof PrimaryContext;
+	private static boolean isSelfMethodAssignment(ExpressionContext expr) {
+		if (expr.getChild(0) instanceof PrimaryContext){
+			return true;
+		}
+		return false;
 	}
 
+	private static boolean isSelfMethodCall(ExpressionContext expr) {
+		if (expr.getChildCount() >= 2){
+			// [notSuper][(]
+			return !expr.getChild(0).getText().equals("super") && expr.getChild(1).getText().equals("(");
+		}
+		if (expr.getChildCount() >= 5){
+			// [this][.][anything][(]
+			return expr.getChild(0).getText().equals("this") && expr.getChild(3).getText().equals("(");
+		}
+		return false;
+	}
+	
 	private static boolean isAssignment(ExpressionContext expr) {
 		return expr.getChildCount() > 1
 				&& expr.getChild(1) instanceof TerminalNodeImpl
@@ -226,6 +288,14 @@ public class Analysis {
 	}
 	
 	private static List<ExpressionContext> getExpressions(BlockStatementContext stmt){
+		if (stmt.getChild(0) instanceof LocalVariableDeclarationStatementContext){
+			return ((LocalVariableDeclarationStatementContext)stmt.getChild(0))
+					.children
+					.stream()
+					.filter(x -> x instanceof StatementExpressionContext)
+					.map(x -> (ExpressionContext)x.getChild(0))
+					.collect(Collectors.toList());
+		}
 		return ((StatementContext)stmt.getChild(0))
 				.children
 				.stream()
