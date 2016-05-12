@@ -56,7 +56,7 @@ public class ProjectSet {
 			.sum();
 	}
 
-	public int countFailures() {
+	public int countClassesWithFailures() {
 		return projects
 			.stream()
 			.mapToInt(project -> project.failures.size())
@@ -68,6 +68,26 @@ public class ProjectSet {
 			.stream()
 			.flatMap(project -> project.failures.stream())
 			.collect(Collectors.toList());
+	}
+
+	public long countClassesWithDowncallFailures() {
+		return failures()
+			.stream()
+			.filter(failureSet -> failureSet
+				.failures
+				.stream()
+				.anyMatch(x -> x.failureType == FailureType.DOWN_CALL))
+			.count();
+	}
+
+	public long countClassesWithStoringThisFailures() {
+		return failures()
+			.stream()
+			.filter(failureSet -> failureSet
+				.failures
+				.stream()
+				.anyMatch(x -> x.failureType == FailureType.STORING_THIS))
+			.count();
 	}
 	
 	private static boolean containsJavaFiles(Path path) {

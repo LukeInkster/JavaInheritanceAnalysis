@@ -1,9 +1,7 @@
 package analysis;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.stream.Collectors;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CharStream;
@@ -23,13 +21,15 @@ public class Analysis {
 		System.out.println("Found " + projects.size() + " projects.");
 //		writer = new PrintWriter("output/failures.txt", "UTF-8");
 		
-		Project p = Project.from(new File("data/selfMethodCalls.txt"));
-		System.out.println(p.failures.size());
-		System.out.println(p.failures.stream().flatMap(f -> f.failures.stream()).map(x -> x.getText()).collect(Collectors.toList()));
+//		Project p = Project.from(new File("data/selfMethodCalls.txt"));
+//		System.out.println(p.failures.size());
+//		System.out.println(p.failures.stream().flatMap(f -> f.failures.stream()).map(x -> x.text()).collect(Collectors.toList()));
 		
 		System.out.println(projects.countFiles() + " total files");
 		System.out.println(projects.countClasses() + " total classes");
-		System.out.println(projects.countFailures() + " total constructor issues");
+		System.out.println(projects.countClassesWithFailures() + " classes with constructor issues");
+		System.out.println(projects.countClassesWithDowncallFailures() + " classes with downcalls in constructors");
+		System.out.println(projects.countClassesWithStoringThisFailures() + " classes storing this in constructors");
 //		projects.failures().forEach(f -> System.out.println(f));
 
 		System.out.println(projects.countExtends() + " classes extend another class");

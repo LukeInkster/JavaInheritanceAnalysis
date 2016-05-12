@@ -87,22 +87,15 @@ public class Project{
 	}
 	
 	private void countFailures(Pair<Path, CompilationUnitContext> compilationUnit) {
-		//try {
-	        List<ExpressionContext> failures = listClasses(compilationUnit.second(), "");
-	        if (!failures.isEmpty()){
-	        	this.failures.add(new FailureSet(compilationUnit.first(), failures.stream()));
-	        }
-//		}
-//		catch (Exception e) { 
-//			breaks++;
-//			return Stream.empty(); 
-//		}
+        List<Failure> failures = listClasses(compilationUnit.second(), "");
+        if (!failures.isEmpty()){
+        	this.failures.add(new FailureSet(compilationUnit.first(), failures.stream()));
+        }
 	}
 	
-	public List<ExpressionContext> listClasses(ParseTree tree, String indent){
-		List<ExpressionContext> failures = new ArrayList<ExpressionContext>();
-		for (int i=0; i<tree.getChildCount(); i++){
-			ParseTree c = tree.getChild(i);
+	public List<Failure> listClasses(ParseTree tree, String indent){
+		List<Failure> failures = new ArrayList<Failure>();
+		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ClassDeclarationContext){
 				classCount++;
 				ClassDeclarationContext classDecl = (ClassDeclarationContext) c;
@@ -114,8 +107,8 @@ public class Project{
 		return failures;
 	}
 	
-	public List<ExpressionContext> listSubDeclarations(ParseTree tree, String indent){
-		List<ExpressionContext> failures = new ArrayList<ExpressionContext>();
+	public List<Failure> listSubDeclarations(ParseTree tree, String indent){
+		List<Failure> failures = new ArrayList<Failure>();
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof MethodDeclarationContext){
 				MethodDeclarationContext methodDecl = (MethodDeclarationContext) c;
@@ -134,8 +127,8 @@ public class Project{
 		return failures;
 	}
 
-	private List<ExpressionContext> listStatements(ParseTree tree, String indent) {
-		List<ExpressionContext> failures = new ArrayList<ExpressionContext>();
+	private List<Failure> listStatements(ParseTree tree, String indent) {
+		List<Failure> failures = new ArrayList<Failure>();
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ConstructorBodyContext){
 				ConstructorBodyContext ctorBody = (ConstructorBodyContext) c;
@@ -147,33 +140,35 @@ public class Project{
 		return failures;
 	}
 	
-	private static List<ExpressionContext> listExpressions(BlockStatementContext stmt, String indent) {
-		List<ExpressionContext> failures = new ArrayList<ExpressionContext>();
+	private static List<Failure> listExpressions(BlockStatementContext stmt, String indent) {
+		List<Failure> failures = new ArrayList<Failure>();
 		for (ExpressionContext expr : getExpressions((BlockStatementContext)stmt)){
 			if (isAssignment(expr)){
 				ExpressionContext rhs = (ExpressionContext) expr.getChild(2);
 				if(rhs.getText().equals("this")){
-					failures.add(expr);
+					failures.add(new Failure(expr, FailureType.STORING_THIS));
 					print("stmnt:" + indent + expr.getText() + FAIL);
 				} else if (rhs.getChild(0) instanceof ExpressionContext
 						&& isSelfMethodAssignment((ExpressionContext)rhs.getChild(0))){
-					failures.add(expr);
+					failures.add(new Failure(expr, FailureType.DOWN_CALL));
 					print("stmnt:" + indent + expr.getText() + FAIL);
 				}
-				else print("stmnt:" + indent + expr.getText() + PASS);
+				else {
+					print("stmnt:" + indent + expr.getText() + PASS);
+				}
 			}
 			else if (isSelfMethodCall(expr)) {
-				failures.add(expr);
-			} else print("stmnt:" + indent + expr.getText() + PASS);
+				failures.add(new Failure(expr, FailureType.DOWN_CALL));
+			} 
+			else {
+				print("stmnt:" + indent + expr.getText() + PASS);
+			}
 		}
 		return failures;
 	}
 
 	private static boolean isSelfMethodAssignment(ExpressionContext expr) {
-		if (expr.getChild(0) instanceof PrimaryContext){
-			return true;
-		}
-		return false;
+		return expr.getChild(0) instanceof PrimaryContext;
 	}
 
 	private static boolean isSelfMethodCall(ExpressionContext expr) {
@@ -211,48 +206,48 @@ public class Project{
 		ParseTree c = stmt.getChild(0);
 		if (c instanceof LocalVariableDeclarationStatementContext){
 			return ((LocalVariableDeclarationStatementContext)c)
-					.children
-					.stream()
-					.filter(x -> x instanceof StatementExpressionContext)
-					.map(x -> (ExpressionContext)x.getChild(0))
-					.collect(Collectors.toList());
+				.children
+				.stream()
+				.filter(x -> x instanceof StatementExpressionContext)
+				.map(x -> (ExpressionContext)x.getChild(0))
+				.collect(Collectors.toList());
 		}
 		else if (c instanceof TypeDeclarationContext){
 			TypeDeclarationContext tdc = (TypeDeclarationContext)c;
 			if (tdc.children == null) return new ArrayList<ExpressionContext>();
 			else return ((TypeDeclarationContext)c)
-					.children
-					.stream()
-					.filter(x -> x instanceof StatementExpressionContext)
-					.map(x -> (ExpressionContext)x.getChild(0))
-					.collect(Collectors.toList());
+				.children
+				.stream()
+				.filter(x -> x instanceof StatementExpressionContext)
+				.map(x -> (ExpressionContext)x.getChild(0))
+				.collect(Collectors.toList());
 		}
 		else if (c instanceof StatementContext){
 			StatementContext sc = (StatementContext)c;
 			if (sc.children == null) return new ArrayList<ExpressionContext>();
 			return ((StatementContext)c)
-					.children
-					.stream()
-					.filter(x -> x instanceof StatementExpressionContext)
-					.map(x -> (ExpressionContext)x.getChild(0))
-					.collect(Collectors.toList());
+				.children
+				.stream()
+				.filter(x -> x instanceof StatementExpressionContext)
+				.map(x -> (ExpressionContext)x.getChild(0))
+				.collect(Collectors.toList());
 		}
 		return new ArrayList<ExpressionContext>();
 	}
 	
 	private static List<ParseTree> childrenOf(ParseTree tree){
 		return IntStream
-				.range(0, tree.getChildCount())
-				.mapToObj(i -> tree.getChild(i))
-				.collect(Collectors.toList());
+			.range(0, tree.getChildCount())
+			.mapToObj(i -> tree.getChild(i))
+			.collect(Collectors.toList());
 	}
 	
 	private static List<Path> javaFilesIn(Path path) {
 		try {
 			return Files
-					.walk(path)
-					.filter(f -> f.toString().endsWith(".java"))
-					.collect(Collectors.toList());
+				.walk(path)
+				.filter(f -> f.toString().endsWith(".java"))
+				.collect(Collectors.toList());
 		} catch (IOException e) {
 			return new ArrayList<Path>();
 		}
