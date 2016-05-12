@@ -14,7 +14,7 @@ import antlr.JavaParser;
 import antlr.JavaParser.CompilationUnitContext;
 
 public class Analysis {
-	private static final int limit = 30;
+	private static final int limit = 100;
 //	private static PrintWriter writer;
 
 	public static void main(String[] args) throws IOException {

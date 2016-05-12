@@ -34,8 +34,9 @@ public class Project{
 	private static final String PASS = "\t\tPASS";
 	private static final String FAIL = "\t\tFAIL";
 	
-	public int fileCount;
-	public int classCount;
+	// Set in the constructor
+	public int fileCount = 0;
+	public int classCount = 0;
 	
 	public final Set<String> extendedClasses = new HashSet<String>();
 	public final List<String> extendsClasses = new ArrayList<String>();

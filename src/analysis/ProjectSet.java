@@ -1,6 +1,9 @@
 package analysis;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -13,9 +16,11 @@ public class ProjectSet {
 			.stream(new File(location).listFiles())
 			.filter(file -> file.isDirectory())
 			.map(directory -> directory.toPath())
+			.filter(path -> containsJavaFiles(path))
+			.limit(limit)
+			.parallel()
 			.map(path -> Project.from(path))
 			.filter(project -> project != null)
-			.limit(limit)
 			.collect(Collectors.toList());
 	}
 	
@@ -63,5 +68,16 @@ public class ProjectSet {
 			.stream()
 			.flatMap(project -> project.failures.stream())
 			.collect(Collectors.toList());
+	}
+	
+	private static boolean containsJavaFiles(Path path) {
+		try {
+			return Files
+					.walk(path)
+					.filter(f -> f.toString().endsWith(".java"))
+					.count() > 0;
+		} catch (IOException e) {
+			return false;
+		}
 	}
 }
