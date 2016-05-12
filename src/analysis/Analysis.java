@@ -1,7 +1,9 @@
 package analysis;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Collectors;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CharStream;
@@ -16,14 +18,15 @@ public class Analysis {
 //	private static PrintWriter writer;
 
 	public static void main(String[] args) throws IOException {
+//		scanCorpus();
+		scanTestFile();
+	}
+
+	private static void scanCorpus() {
 		long start = System.currentTimeMillis();
 		ProjectSet projects = new ProjectSet("/Users/lukeinkster/Documents/QualitasCorpus-20130901r/Systems", limit);
 		System.out.println("Found " + projects.size() + " projects.");
 //		writer = new PrintWriter("output/failures.txt", "UTF-8");
-		
-//		Project p = Project.from(new File("data/selfMethodCalls.txt"));
-//		System.out.println(p.failures.size());
-//		System.out.println(p.failures.stream().flatMap(f -> f.failures.stream()).map(x -> x.text()).collect(Collectors.toList()));
 		
 		System.out.println(projects.countFiles() + " total files");
 		System.out.println(projects.countClasses() + " total classes");
@@ -35,6 +38,13 @@ public class Analysis {
 		System.out.println(projects.countExtends() + " classes extend another class");
 		System.out.println(projects.countExtended() + " classes are extended by another class");
 		System.out.println("Took " + (System.currentTimeMillis() - start) + "ms");
+	}
+
+	private static void scanTestFile() {
+		Project p = Project.from(new File("data/storingThis.txt"));
+		p.failures.forEach(failureSet -> System.out.println(failureSet));
+//		System.out.println(p.failures.size());
+//		System.out.println(p.failures.stream().flatMap(f -> f.failures.stream()).map(x -> x.text()).collect(Collectors.toList()));
 	}
 
 	static CompilationUnitContext getCompilationUnit(Path path) {

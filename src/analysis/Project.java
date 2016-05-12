@@ -25,7 +25,6 @@ import antlr.JavaParser.ExpressionContext;
 import antlr.JavaParser.FieldDeclarationContext;
 import antlr.JavaParser.LocalVariableDeclarationStatementContext;
 import antlr.JavaParser.MethodDeclarationContext;
-import antlr.JavaParser.PrimaryContext;
 import antlr.JavaParser.StatementContext;
 import antlr.JavaParser.StatementExpressionContext;
 import antlr.JavaParser.TypeDeclarationContext;
@@ -58,11 +57,11 @@ public class Project{
 
 	public static Project from(File file) {
 		Path p = file.toPath();
-		System.out.println(p);
+
 		return new Project(Stream.of(
 				new Pair<Path, CompilationUnitContext>(p, Analysis.getCompilationUnit(p))));
 	}
-	
+
 	public Project(Stream<Pair<Path, CompilationUnitContext>> compilationUnits){
 		compilationUnits.forEach(unit ->{
 			fileCount++;
@@ -70,7 +69,7 @@ public class Project{
 			countFailures(unit);
 		});
 	}
-	
+
 	private void countExtensions(ParseTree tree) {
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ClassDeclarationContext){
@@ -85,14 +84,14 @@ public class Project{
 			else countExtensions(c);
 		}
 	}
-	
+
 	private void countFailures(Pair<Path, CompilationUnitContext> compilationUnit) {
         List<Failure> failures = listClasses(compilationUnit.second(), "");
         if (!failures.isEmpty()){
         	this.failures.add(new FailureSet(compilationUnit.first(), failures.stream()));
         }
 	}
-	
+
 	public List<Failure> listClasses(ParseTree tree, String indent){
 		List<Failure> failures = new ArrayList<Failure>();
 		for (ParseTree c : childrenOf(tree)){
@@ -106,7 +105,10 @@ public class Project{
 		}
 		return failures;
 	}
-	
+
+	/**
+	 * Go through all sub-class-declarations -> methods, constructors and fields
+	 */
 	public List<Failure> listSubDeclarations(ParseTree tree, String indent){
 		List<Failure> failures = new ArrayList<Failure>();
 		for (ParseTree c : childrenOf(tree)){
@@ -139,17 +141,17 @@ public class Project{
 		}
 		return failures;
 	}
-	
+
 	private static List<Failure> listExpressions(BlockStatementContext stmt, String indent) {
 		List<Failure> failures = new ArrayList<Failure>();
 		for (ExpressionContext expr : getExpressions((BlockStatementContext)stmt)){
+			System.out.println(expr.getText());
 			if (isAssignment(expr)){
 				ExpressionContext rhs = (ExpressionContext) expr.getChild(2);
 				if(rhs.getText().equals("this")){
 					failures.add(new Failure(expr, FailureType.STORING_THIS));
 					print("stmnt:" + indent + expr.getText() + FAIL);
-				} else if (rhs.getChild(0) instanceof ExpressionContext
-						&& isSelfMethodAssignment((ExpressionContext)rhs.getChild(0))){
+				} else if (isSelfMethodCall(rhs)){
 					failures.add(new Failure(expr, FailureType.DOWN_CALL));
 					print("stmnt:" + indent + expr.getText() + FAIL);
 				}
@@ -167,14 +169,12 @@ public class Project{
 		return failures;
 	}
 
-	private static boolean isSelfMethodAssignment(ExpressionContext expr) {
-		return expr.getChild(0) instanceof PrimaryContext;
-	}
-
 	private static boolean isSelfMethodCall(ExpressionContext expr) {
 		if (expr.getChildCount() >= 2){
 			// [notSuper][(]
-			return !expr.getChild(0).getText().equals("super") && expr.getChild(1).getText().equals("(");
+			return !expr.getChild(0).getText().equals("super") &&
+					expr.getChild(0).getChildCount() == 1 &&
+					expr.getChild(1).getText().equals("(");
 		}
 		if (expr.getChildCount() >= 5){
 			// [this][.][anything][(]

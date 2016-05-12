@@ -1,0 +1,15 @@
+class A {
+	public A(){
+		// Show errors
+		store = this;
+		B.store = this;
+		B.doAThingWith(this);
+		store = B.doAThingWith(this);
+		
+		// Don't show errors
+		store = notThis;
+		B.store = notThis;
+		B.doAThingWith(notThis);
+		store = B.doAThingWith(notThis);
+	}
+}

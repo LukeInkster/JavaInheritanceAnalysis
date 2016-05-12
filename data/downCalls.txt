@@ -1,0 +1,16 @@
+class A{
+	public A(){
+		// Show errors
+		f();
+		x = f();
+		x = f(a, b, c);
+		
+		// Don't show errors
+		B.f();
+		x = B.f();
+		x = B.f(1, 2, 3);
+		x = 1;
+	}
+	
+	int f(){}
+}

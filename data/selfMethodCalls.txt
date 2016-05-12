@@ -1,9 +1,0 @@
-class A{
-	public A(){
-		f();
-		int x = f();
-		x = 1;
-	}
-	
-	int f(){}
-}

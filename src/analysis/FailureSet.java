@@ -16,7 +16,7 @@ public class FailureSet {
 	
 	public String toString(){
 		StringBuilder sb = new StringBuilder(filename);
-		failures.forEach(f -> sb.append("\n  " + f.text()));
+		failures.forEach(f -> sb.append("\n  " + f.text() + "\t\t" + f.failureType));
 		return sb.toString();
 	}
 }
