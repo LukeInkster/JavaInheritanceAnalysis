@@ -3,9 +3,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CharStream;
@@ -16,7 +14,7 @@ import antlr.JavaParser;
 import antlr.JavaParser.CompilationUnitContext;
 
 public class Analysis {
-	private static final int limit = 100;
+	private static final int limit = 30;
 //	private static PrintWriter writer;
 
 	public static void main(String[] args) throws IOException {

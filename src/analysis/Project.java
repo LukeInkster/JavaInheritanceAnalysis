@@ -43,7 +43,10 @@ public class Project{
 	
 	public static Project from(Path path){
 		List<Path> javaFiles = javaFilesIn(path);
+		if (javaFiles.isEmpty()) return null;
+		
 		System.out.println(javaFiles.size());
+		
 		return new Project(
 			javaFiles
 				.stream()
