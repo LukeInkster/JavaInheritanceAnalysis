@@ -3,7 +3,9 @@ package analysis;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -31,10 +33,16 @@ import antlr.JavaParser.TypeDeclarationContext;
 
 public class Unit {
 	public final Path path;
-	public int classCount = 0;
-	public String extendsClass;
-	public FailureSet failureSet; 
 	public final boolean compiled;
+	
+	public int classCount = 0;
+	public String superClassName;
+	public FailureSet failureSet; 
+	public String className;
+	public boolean hasForwarding;
+	
+	private static final List<String> classDeclKeywords = 
+			Arrays.asList("public", "private", "abstract", "protected", "static", "final", "strictfp", "class");
 	
 	public Unit(Path path){
 //		System.out.println(path.toString());
@@ -44,22 +52,27 @@ public class Unit {
 		if (!this.compiled) return;
 //		System.out.println(compilationUnit.getText().length());
 		this.failureSet = new FailureSet(path);
-		findExtension(compilationUnit);
+		findClassnameAndExtension(compilationUnit);
 		findFailures(compilationUnit);
 	}
 	
-	private void findExtension(ParseTree tree) {
+	private void findClassnameAndExtension(ParseTree tree) {
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ClassDeclarationContext){
 				ClassDeclarationContext classDecl = (ClassDeclarationContext) c;
+				for (ParseTree declWord : childrenOf(classDecl)){
+					if (classDeclKeywords.contains(declWord.getText().toLowerCase())) continue;
+					className = declWord.getText();
+					break;
+				}
 				for (int j=0; j<classDecl.getChildCount(); j++){
 					if (classDecl.getChild(j).getText().equals("extends")){
-						extendsClass = classDecl.getChild(j+1).getText();
-						return;
+						superClassName = classDecl.getChild(j+1).getText();
+						break;
 					}
 				}
 			}
-			else findExtension(c);
+			else findClassnameAndExtension(c);
 		}
 	}
 
@@ -228,6 +241,9 @@ public class Unit {
 
 	private CompilationUnitContext getCompilationUnit(Path path) {
 		try {
+			String wholeFile = Files.newBufferedReader(path).lines().collect(Collectors.joining("\n"));
+			String forwarding = "[\\w<>]+\\s+(\\w+)\\s*\\(.*\\)\\s*\\{\\s*return\\s+\\w+(\\.\\w+)*\\.\\1\\(.*\\)\\s*;\\s*\\}";
+			hasForwarding = Pattern.compile(forwarding).matcher(wholeFile).find();
 			CharStream in = new ANTLRInputStream(Files.newBufferedReader(path));
 		    JavaLexer lexer = new JavaLexer(in);
 		    lexer.removeErrorListeners();

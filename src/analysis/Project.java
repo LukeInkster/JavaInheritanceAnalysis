@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -15,20 +17,27 @@ public class Project{
 	public int classCount = 0;
 	
 	public final List<Unit> units;
+	private Set<String> extendedClasses;
 	
 	public long extendedClassCount(){
-		return units
-			.stream()
-			.map(unit -> unit.extendsClass)
-			.filter(superClass -> superClass != null)
-			.distinct()
-			.count();
+		return extendedClasses.size();
 	}
 	
 	public long extendsClassCount(){
 		return units
 			.stream()
-			.filter(unit -> unit.extendsClass != null)
+			.filter(unit -> unit.superClassName != null)
+			.count();
+	}
+
+	public long countExtendedClassesWithFailure(FailureType failureType) {
+		return units
+			.stream()
+			.filter(unit -> extendedClasses.contains(unit.className))
+			.filter(unit -> unit.failureSet
+				.failures
+				.stream()
+				.anyMatch(failure -> failure.failureType == failureType))
 			.count();
 	}
 	
@@ -59,6 +68,12 @@ public class Project{
 	public Project(int fileCount, Stream<Unit> units){
 		this.fileCount = fileCount;
 		this.units = units.collect(Collectors.toList());
+		this.extendedClasses = new HashSet<String>(
+			this.units
+			.stream()
+			.map(unit -> unit.superClassName)
+			.collect(Collectors.toList())
+		);
 	}
 	
 	private static List<Path> javaFilesIn(Path path) {

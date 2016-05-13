@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Corpus {
 	private List<Project> projects;
@@ -72,24 +73,33 @@ public class Corpus {
 			.collect(Collectors.toList());
 	}
 
-	public long countClassesWithDowncallFailures() {
+	public long countClassesWithFailure(FailureType failureType) {
 		return failures()
 			.stream()
 			.filter(failureSet -> failureSet
 				.failures
 				.stream()
-				.anyMatch(x -> x.failureType == FailureType.DOWN_CALL))
+				.anyMatch(x -> x.failureType == failureType))
 			.count();
 	}
 
-	public long countClassesWithStoringThisFailures() {
-		return failures()
+	public long countExtendedClassesWithFailure(FailureType failureType) {
+		return projects
 			.stream()
-			.filter(failureSet -> failureSet
-				.failures
-				.stream()
-				.anyMatch(x -> x.failureType == FailureType.STORING_THIS))
-			.count();
+			.mapToLong(project -> project.countExtendedClassesWithFailure(failureType))
+			.sum();
+	}
+	
+	private Stream<Unit> classesWithForwarding(){
+		return projects.stream().flatMap(p -> p.units.stream()).filter(u -> u.hasForwarding);
+	}
+	
+	public long countClassesWithForwarding(){
+		return classesWithForwarding().count();
+	}
+	
+	public long countClassesWithForwardingThatExtend(){
+		return classesWithForwarding().filter(c -> c.superClassName != null).count();
 	}
 	
 	private static boolean containsJavaFiles(Path path) {
