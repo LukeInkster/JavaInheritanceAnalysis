@@ -8,10 +8,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ProjectSet {
+public class Corpus {
 	private List<Project> projects;
 	
-	public ProjectSet(String location, int limit){
+	public Corpus(String location, int limit){
 		projects = Arrays
 			.stream(new File(location).listFiles())
 			.filter(file -> file.isDirectory())
@@ -22,51 +22,54 @@ public class ProjectSet {
 			.map(path -> Project.from(path))
 			.filter(project -> project != null)
 			.collect(Collectors.toList());
+		
+		System.out.println(projects.size());
 	}
 	
 	public int size(){
 		return projects.size();
 	}
 	
-	public int countExtends(){
+	public long countExtends(){
 		return projects
 			.stream()
-			.mapToInt(project -> project.extendsClasses.size())
+			.mapToLong(project -> project.extendsClassCount())
 			.sum();
 	}
 	
-	public int countExtended(){
+	public long countExtended(){
 		return projects
 			.stream()
-			.mapToInt(project -> project.extendedClasses.size())
+			.mapToLong(project -> project.extendedClassCount())
 			.sum();
 	}
 
 	public int countFiles() {
 		return projects
 			.stream()
-			.mapToInt(project -> project.fileCount)
+			.mapToInt(project -> project.units.size())
 			.sum();
 	}
 
 	public int countClasses() {
 		return projects
 			.stream()
-			.mapToInt(project -> project.classCount)
+			.flatMap(project -> project.units.stream())
+			.mapToInt(unit -> unit.classCount)
 			.sum();
 	}
 
-	public int countClassesWithFailures() {
+	public long countClassesWithFailures() {
 		return projects
 			.stream()
-			.mapToInt(project -> project.failures.size())
+			.mapToLong(project -> project.failures().filter(failure -> !failure.failures.isEmpty()).count())
 			.sum();
 	}
 	
 	public List<FailureSet> failures(){
 		return projects
 			.stream()
-			.flatMap(project -> project.failures.stream())
+			.flatMap(project -> project.failures())
 			.collect(Collectors.toList());
 	}
 
@@ -93,9 +96,9 @@ public class ProjectSet {
 	private static boolean containsJavaFiles(Path path) {
 		try {
 			return Files
-					.walk(path)
-					.filter(f -> f.toString().endsWith(".java"))
-					.count() > 0;
+				.walk(path)
+				.filter(f -> f.toString().endsWith(".java"))
+				.count() > 0;
 		} catch (IOException e) {
 			return false;
 		}
