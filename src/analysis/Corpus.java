@@ -11,19 +11,18 @@ import java.util.stream.Collectors;
 public class Corpus {
 	private List<Project> projects;
 	
-	public Corpus(String location, int limit){
+	public Corpus(String location, int start, int end){
 		projects = Arrays
 			.stream(new File(location).listFiles())
 			.filter(file -> file.isDirectory())
 			.map(directory -> directory.toPath())
 			.filter(path -> containsJavaFiles(path))
-			.limit(limit)
-			.parallel()
+			.skip(start)
+			.limit(end)
+//			.parallel()
 			.map(path -> Project.from(path))
 			.filter(project -> project != null)
 			.collect(Collectors.toList());
-		
-		System.out.println(projects.size());
 	}
 	
 	public int size(){

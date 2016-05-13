@@ -39,7 +39,8 @@ public class Project{
 	public static Project from(Path path){
 		List<Path> javaFiles = javaFilesIn(path);
 		if (javaFiles.isEmpty()) return null;
-		System.out.println(path);
+//		System.out.println(path + "   " + javaFiles.size() + "   Free Memory:"
+//	            + (Runtime.getRuntime().freeMemory() / 1000000) + "mb");
 		return new Project(
 			javaFiles.size(),
 			javaFiles

@@ -42,6 +42,7 @@ public class Unit {
 		CompilationUnitContext compilationUnit = getCompilationUnit(path);
 		this.compiled = compilationUnit != null;
 		if (!this.compiled) return;
+//		System.out.println(compilationUnit.getText().length());
 		this.failureSet = new FailureSet(path);
 		findExtension(compilationUnit);
 		findFailures(compilationUnit);
