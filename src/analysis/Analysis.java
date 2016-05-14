@@ -15,21 +15,21 @@ public class Analysis {
 		Corpus corpus = new Corpus("/Users/lukeinkster/Documents/QualitasCorpus-20130901r/Systems", 0, 100);
 		System.out.println("Found " + corpus.size() + " projects.");
 		
-		System.out.println(corpus.countFiles() + " total files");
-		System.out.println(corpus.countClasses() + " total classes");
+		System.out.println(corpus.countFiles() + " - total files");
+		System.out.println(corpus.countClasses() + " - total classes");
 
-		System.out.println(corpus.countExtends() + " classes extend another class");
-		System.out.println(corpus.countExtended() + " classes are extended by another class");
-		System.out.println(corpus.countClassesWithForwarding() + " classes with forwarding");
-		System.out.println(corpus.countClassesWithForwardingThatExtend() + "classes with forwarding that extend");
+		System.out.println(corpus.countExtends() + " - classes extend another class");
+		System.out.println(corpus.countExtended() + " - classes are extended by another class");
+		System.out.println(corpus.countClassesWithForwarding() + " - classes with forwarding");
+		System.out.println(corpus.countClassesWithForwardingThatExtend() + " - classes with forwarding that extend");
 		
-		System.out.println(corpus.countClassesWithFailures() + " classes with downcalls or storing this in constructor");
-		System.out.println(corpus.countClassesWithFailure(FailureType.DOWN_CALL) + " classes with downcalls in constructors");
-		System.out.println(corpus.countClassesWithFailure(FailureType.STORING_THIS) + " classes storing this in constructors");
+		System.out.println(corpus.countClassesWithFailures() + " - classes with downcalls or storing this in constructor");
+		System.out.println(corpus.countClassesWithFailure(FailureType.DOWN_CALL) + " - classes with downcalls in constructors");
+		System.out.println(corpus.countClassesWithFailure(FailureType.STORING_THIS) + " - classes storing this in constructors");
 		System.out.println(corpus.countExtendedClassesWithFailure(FailureType.DOWN_CALL)
-				+ " extended classes with downcalls in constructors");
+				+ " - extended classes with downcalls in constructors");
 		System.out.println(corpus.countExtendedClassesWithFailure(FailureType.STORING_THIS)
-				+ " extended classes storing this in constructors");
+				+ " - extended classes storing this in constructors");
 //		writeErrorsToFile(projects);
 		System.out.println("Took " + (System.currentTimeMillis() - start) + "ms");
 	}

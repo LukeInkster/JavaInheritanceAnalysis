@@ -1,5 +1,8 @@
 package analysis;
 
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -40,20 +43,22 @@ public class Unit {
 	public FailureSet failureSet; 
 	public String className;
 	public boolean hasForwarding;
+	public boolean hasDelegation;
+	
+	public static final Pattern forwarding =
+			Pattern.compile("[\\w<>]+\\s+(\\w+)\\s*\\(.*\\)\\s*\\{\\s*return\\s+\\w+(\\.\\w+)*\\.\\1\\(.*\\)\\s*;\\s*\\}");
 	
 	private static final List<String> classDeclKeywords = 
 			Arrays.asList("public", "private", "abstract", "protected", "static", "final", "strictfp", "class");
 	
 	public Unit(Path path){
-//		System.out.println(path.toString());
 		this.path = path;
 		CompilationUnitContext compilationUnit = getCompilationUnit(path);
 		this.compiled = compilationUnit != null;
 		if (!this.compiled) return;
-//		System.out.println(compilationUnit.getText().length());
 		this.failureSet = new FailureSet(path);
 		findClassnameAndExtension(compilationUnit);
-		findFailures(compilationUnit);
+		scanClasses(compilationUnit, "");
 	}
 	
 	private void findClassnameAndExtension(ParseTree tree) {
@@ -76,81 +81,66 @@ public class Unit {
 		}
 	}
 
-	private void findFailures(CompilationUnitContext compilationUnit) {
-        List<Failure> failures = listClasses(compilationUnit, "");
-        if (!failures.isEmpty()){
-        	this.failureSet.add(failures.stream());
-        }
-	}
-
-	public List<Failure> listClasses(ParseTree tree, String indent){
-		List<Failure> failures = new ArrayList<Failure>();
+	public void scanClasses(ParseTree tree, String indent){
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ClassDeclarationContext){
 				classCount++;
 				ClassDeclarationContext classDecl = (ClassDeclarationContext) c;
-				failures.addAll(listSubDeclarations(classDecl, indent + "  "));
+				scanSubDeclarations(classDecl, indent + "  ");
 			}
-			else failures.addAll(listClasses(c, indent + "  "));
+			else scanClasses(c, indent + "  ");
 		}
-		return failures;
 	}
 
 	/**
 	 * Go through all sub-class-declarations -> methods, constructors and fields
 	 */
-	public List<Failure> listSubDeclarations(ParseTree tree, String indent){
-		List<Failure> failures = new ArrayList<Failure>();
+	public void scanSubDeclarations(ParseTree tree, String indent){
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof MethodDeclarationContext){
 				MethodDeclarationContext methodDecl = (MethodDeclarationContext) c;
-				failures.addAll(listStatements(methodDecl, indent + "  "));
+				scanStatements(methodDecl, indent + "  ");
 			} else if (c instanceof ConstructorDeclarationContext){
 				ConstructorDeclarationContext ctorDecl = (ConstructorDeclarationContext) c;
-				failures.addAll(listStatements(ctorDecl, indent + "  "));
+				scanStatements(ctorDecl, indent + "  ");
 			} else if (c instanceof FieldDeclarationContext){
 				// Field decl is safe
 			}
-			failures.addAll(listSubDeclarations(c, indent));
+			scanSubDeclarations(c, indent);
 		}
-		return failures;
 	}
 
-	private List<Failure> listStatements(ParseTree tree, String indent) {
-		List<Failure> failures = new ArrayList<Failure>();
+	private void scanStatements(ParseTree tree, String indent) {
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ConstructorBodyContext){
 				ConstructorBodyContext ctorBody = (ConstructorBodyContext) c;
 				for (BlockStatementContext stmt : getStatements(ctorBody)){
-					failures.addAll(listExpressions(stmt, indent));
+					scanExpressions(stmt, indent);
 				}
 			}
 		}
-		return failures;
 	}
 
-	private static List<Failure> listExpressions(BlockStatementContext stmt, String indent) {
-		List<Failure> failures = new ArrayList<Failure>();
+	private void scanExpressions(BlockStatementContext stmt, String indent) {
 		for (ExpressionContext expr : getExpressions((BlockStatementContext)stmt)){
 			if (isAssignment(expr)){
 				ExpressionContext rhs = (ExpressionContext) expr.getChild(2);
 				if(rhs.getText().equals("this") || isMethodCallPassingThis(rhs)){
-					failures.add(new Failure(expr, FailureType.STORING_THIS));
+					failureSet.add(new Failure(expr, FailureType.STORING_THIS));
 				} else if (isDownCall(rhs)){
-					failures.add(new Failure(expr, FailureType.DOWN_CALL));
+					failureSet.add(new Failure(expr, FailureType.DOWN_CALL));
 				}
 			}
 			else if (isDownCall(expr)) {
-				failures.add(new Failure(expr, FailureType.DOWN_CALL));
+				failureSet.add(new Failure(expr, FailureType.DOWN_CALL));
 			}
 			else if (isMethodCallPassingThis(expr)){
-				failures.add(new Failure(expr, FailureType.STORING_THIS));
+				failureSet.add(new Failure(expr, FailureType.STORING_THIS));
 			}
 		}
-		return failures;
 	}
 
-	private static boolean isMethodCallPassingThis(ExpressionContext expr) {
+	private boolean isMethodCallPassingThis(ExpressionContext expr) {
 		boolean inParams = false;
 		for (int i = 0; i < expr.getChildCount(); i++){
 			if (expr.getChild(i).getText().equals("(")){
@@ -164,7 +154,7 @@ public class Unit {
 		return false;
 	}
 
-	private static boolean isDownCall(ExpressionContext expr) {
+	private boolean isDownCall(ExpressionContext expr) {
 		if (expr.getChildCount() >= 2){
 			// [notSuper][(]
 			return !expr.getChild(0).getText().equals("super") &&
@@ -180,13 +170,13 @@ public class Unit {
 		return false;
 	}
 	
-	private static boolean isAssignment(ExpressionContext expr) {
+	private boolean isAssignment(ExpressionContext expr) {
 		return expr.getChildCount() > 1
 				&& expr.getChild(1) instanceof TerminalNodeImpl
 				&& ((TerminalNodeImpl)expr.getChild(1)).symbol.getText().equals("=");
 	}
 
-	private static List<BlockStatementContext> getStatements(ParseTree tree){
+	private List<BlockStatementContext> getStatements(ParseTree tree){
 		if (tree.getChildCount() >= 1 && tree.getChild(0) instanceof BlockContext){
 			return getStatements(tree.getChild(0));
 		}
@@ -199,7 +189,7 @@ public class Unit {
 				.collect(Collectors.toList());
 	}
 	
-	private static List<ExpressionContext> getExpressions(BlockStatementContext stmt){
+	private List<ExpressionContext> getExpressions(BlockStatementContext stmt){
 		ParseTree c = stmt.getChild(0);
 		if (c instanceof LocalVariableDeclarationStatementContext){
 			return ((LocalVariableDeclarationStatementContext)c)
@@ -232,7 +222,7 @@ public class Unit {
 		return new ArrayList<ExpressionContext>();
 	}
 	
-	private static List<ParseTree> childrenOf(ParseTree tree){
+	private List<ParseTree> childrenOf(ParseTree tree){
 		return IntStream
 			.range(0, tree.getChildCount())
 			.mapToObj(i -> tree.getChild(i))
@@ -241,10 +231,11 @@ public class Unit {
 
 	private CompilationUnitContext getCompilationUnit(Path path) {
 		try {
-			String wholeFile = Files.newBufferedReader(path).lines().collect(Collectors.joining("\n"));
-			String forwarding = "[\\w<>]+\\s+(\\w+)\\s*\\(.*\\)\\s*\\{\\s*return\\s+\\w+(\\.\\w+)*\\.\\1\\(.*\\)\\s*;\\s*\\}";
-			hasForwarding = Pattern.compile(forwarding).matcher(wholeFile).find();
-			CharStream in = new ANTLRInputStream(Files.newBufferedReader(path));
+			String wholeFile = readFile(path);
+			if (wholeFile == null) return null;
+			hasForwarding = forwarding.matcher(wholeFile).find();
+			
+			CharStream in = new ANTLRInputStream(wholeFile);
 		    JavaLexer lexer = new JavaLexer(in);
 		    lexer.removeErrorListeners();
 		    CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -252,7 +243,29 @@ public class Unit {
 		    parser.removeErrorListeners();
 		    return parser.compilationUnit();
 		} catch (Exception e) {
+//			e.printStackTrace();
 			return null;//throw new RuntimeException("Could not read file");
+		}
+	}
+	
+	private String readFile(Path path){
+		List<Charset> charsetsToTry = Arrays.asList(StandardCharsets.UTF_8, StandardCharsets.UTF_16,
+				StandardCharsets.UTF_16BE, StandardCharsets.UTF_16LE, StandardCharsets.US_ASCII);
+		
+		for (Charset charset : charsetsToTry){
+			String file = tryReadFile(path, charset);
+			if (file != null) return file;
+		}
+		return null;
+	}
+	
+	private String tryReadFile(Path path, Charset encoding){
+		try {
+			byte[] encoded = Files.readAllBytes(path);
+			return new String(encoded, encoding);
+		} 
+		catch (IOException e) {
+			return null;
 		}
 	}
 }
