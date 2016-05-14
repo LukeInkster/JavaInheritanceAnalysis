@@ -13,13 +13,14 @@ public class Corpus {
 	private List<Project> projects;
 	
 	public Corpus(String location, int start, int end){
-		projects = Arrays
+		System.out.println("ping");
+		List<Path> paths = Arrays
 			.stream(new File(location).listFiles())
 			.filter(file -> file.isDirectory())
 			.map(directory -> directory.toPath())
-			.filter(path -> containsJavaFiles(path))
-			.skip(start)
-			.limit(end)
+			.filter(path -> containsJavaFiles(path)).skip(700).limit(100).collect(Collectors.toList());
+		System.out.println("pong");
+		projects = paths.stream()
 //			.parallel()
 			.map(path -> Project.from(path))
 			.filter(project -> project != null)
@@ -102,12 +103,23 @@ public class Corpus {
 		return classesWithForwarding().filter(c -> c.superClassName != null).count();
 	}
 	
+	public long countClassesWithDelegation(){
+		return projects
+			.stream()
+			.flatMap(project -> project.units.stream())
+			.filter(unit -> !unit.delegationStatements.isEmpty())
+			.count();
+	}
+	
 	private static boolean containsJavaFiles(Path path) {
 		try {
-			return Files
-				.walk(path)
+			Stream<Path> files = Files.walk(path);
+			long found = files
 				.filter(f -> f.toString().endsWith(".java"))
-				.count() > 0;
+				.count();
+			files.close();
+//			System.out.println(found);
+			return found > 0;
 		} catch (IOException e) {
 			return false;
 		}

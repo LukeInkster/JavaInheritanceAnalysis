@@ -2,7 +2,6 @@ package analysis;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.regex.Pattern;
 
 public class Analysis {
 	public static void main(String[] args) throws IOException {
@@ -30,13 +29,16 @@ public class Analysis {
 				+ " - extended classes with downcalls in constructors");
 		System.out.println(corpus.countExtendedClassesWithFailure(FailureType.STORING_THIS)
 				+ " - extended classes storing this in constructors");
+		
+		System.out.println(corpus.countClassesWithDelegation() + " - classes with delegation");
 //		writeErrorsToFile(projects);
 		System.out.println("Took " + (System.currentTimeMillis() - start) + "ms");
 	}
 
 	private static void scanTestFile() {
-		Project p = Project.from(new File("data/storingThis.txt"));
+		Project p = Project.from(new File("data/possiblyDelegating.txt"));
 		p.failures().forEach(failureSet -> System.out.println(failureSet));
+		p.units.get(0).delegationStatements.forEach(d -> System.out.println(d.getText()));
 //		System.out.println(p.failures.size());
 //		System.out.println(p.failures.stream().flatMap(f -> f.failures.stream()).map(x -> x.text()).collect(Collectors.toList()));
 	}

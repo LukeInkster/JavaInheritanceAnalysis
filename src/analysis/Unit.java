@@ -15,6 +15,7 @@ import java.util.stream.IntStream;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.tree.ErrorNodeImpl;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNodeImpl;
 
@@ -27,11 +28,14 @@ import antlr.JavaParser.CompilationUnitContext;
 import antlr.JavaParser.ConstructorBodyContext;
 import antlr.JavaParser.ConstructorDeclarationContext;
 import antlr.JavaParser.ExpressionContext;
+import antlr.JavaParser.ExpressionListContext;
 import antlr.JavaParser.FieldDeclarationContext;
 import antlr.JavaParser.LocalVariableDeclarationStatementContext;
+import antlr.JavaParser.MethodBodyContext;
 import antlr.JavaParser.MethodDeclarationContext;
 import antlr.JavaParser.StatementContext;
 import antlr.JavaParser.StatementExpressionContext;
+import antlr.JavaParser.TypeContext;
 import antlr.JavaParser.TypeDeclarationContext;
 
 public class Unit {
@@ -43,7 +47,7 @@ public class Unit {
 	public FailureSet failureSet; 
 	public String className;
 	public boolean hasForwarding;
-	public boolean hasDelegation;
+	public List<ExpressionContext> delegationStatements = new ArrayList<ExpressionContext>();
 	
 	public static final Pattern forwarding =
 			Pattern.compile("[\\w<>]+\\s+(\\w+)\\s*\\(.*\\)\\s*\\{\\s*return\\s+\\w+(\\.\\w+)*\\.\\1\\(.*\\)\\s*;\\s*\\}");
@@ -52,13 +56,19 @@ public class Unit {
 			Arrays.asList("public", "private", "abstract", "protected", "static", "final", "strictfp", "class");
 	
 	public Unit(Path path){
+		System.out.println(path);
 		this.path = path;
+		if (path.toString().endsWith("sunflow/src/org/sunflow/math/PerlinScalar.java")){
+			compiled = false;
+			return;
+		}
 		CompilationUnitContext compilationUnit = getCompilationUnit(path);
+		System.out.println("ping");
 		this.compiled = compilationUnit != null;
 		if (!this.compiled) return;
 		this.failureSet = new FailureSet(path);
 		findClassnameAndExtension(compilationUnit);
-		scanClasses(compilationUnit, "");
+		scanClasses(compilationUnit);
 	}
 	
 	private void findClassnameAndExtension(ParseTree tree) {
@@ -81,47 +91,99 @@ public class Unit {
 		}
 	}
 
-	public void scanClasses(ParseTree tree, String indent){
+	public void scanClasses(ParseTree tree){
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof ClassDeclarationContext){
 				classCount++;
 				ClassDeclarationContext classDecl = (ClassDeclarationContext) c;
-				scanSubDeclarations(classDecl, indent + "  ");
+				scanSubDeclarations(classDecl);
 			}
-			else scanClasses(c, indent + "  ");
+			else scanClasses(c);
 		}
 	}
 
 	/**
 	 * Go through all sub-class-declarations -> methods, constructors and fields
 	 */
-	public void scanSubDeclarations(ParseTree tree, String indent){
+	public void scanSubDeclarations(ParseTree tree){
 		for (ParseTree c : childrenOf(tree)){
 			if (c instanceof MethodDeclarationContext){
 				MethodDeclarationContext methodDecl = (MethodDeclarationContext) c;
-				scanStatements(methodDecl, indent + "  ");
+				scanMthdStatements(methodDecl);
 			} else if (c instanceof ConstructorDeclarationContext){
 				ConstructorDeclarationContext ctorDecl = (ConstructorDeclarationContext) c;
-				scanStatements(ctorDecl, indent + "  ");
+				scanCtorStatements(ctorDecl);
 			} else if (c instanceof FieldDeclarationContext){
 				// Field decl is safe
 			}
-			scanSubDeclarations(c, indent);
+			scanSubDeclarations(c);
 		}
 	}
 
-	private void scanStatements(ParseTree tree, String indent) {
+	private void scanMthdStatements(MethodDeclarationContext tree) {
 		for (ParseTree c : childrenOf(tree)){
-			if (c instanceof ConstructorBodyContext){
-				ConstructorBodyContext ctorBody = (ConstructorBodyContext) c;
-				for (BlockStatementContext stmt : getStatements(ctorBody)){
-					scanExpressions(stmt, indent);
+			if (c instanceof MethodBodyContext){
+				MethodBodyContext mthdBody = (MethodBodyContext) c;
+				for (BlockStatementContext stmt : getStatements(mthdBody)){
+					scanMthdExpressions(stmt);
 				}
 			}
 		}
 	}
 
-	private void scanExpressions(BlockStatementContext stmt, String indent) {
+	private void scanMthdExpressions(BlockStatementContext tree) {
+		delegationStatements
+			.addAll(getExpressions(tree)
+				.stream()
+				.filter(this::mthdExpressionIsDelegation)
+				.collect(Collectors.toList())
+			);
+	}
+
+	private boolean mthdExpressionIsDelegation(ExpressionContext expr) {
+		if (isAssignment(expr)){
+			return mthdExpressionIsDelegation((ExpressionContext)expr.getChild(2)); //look at rhs of assignment
+		}
+		else if (expr.getChildCount() == 4
+				&& expr.getChild(0).getText().equals("(")
+				&& expr.getChild(1) instanceof TypeContext){
+			return mthdExpressionIsDelegation((ExpressionContext)expr.getChild(3)); //look at rhs of cast
+		}
+		// [identifier][(][parameters][)] == 4 components
+		else if (expr.getChildCount() == 4 && !(expr.getChild(0) instanceof ErrorNodeImpl)) {
+//			System.out.println(expr.children.stream().map(c -> c.getClass().getName()).collect(Collectors.joining("  -  ")));
+			ExpressionContext identifier = (ExpressionContext)expr.getChild(0);
+			if (identifier.getChildCount() <= 1) {
+				return false; //can't be calling another class with one or fewer identifier components
+			}
+			if (identifier.getChildCount() <= 3 && identifier.getChild(0).getText().equals("this")) { 
+				return false; //calling method on this is fine
+			}
+			if (expr.getChild(2) instanceof ExpressionListContext){
+				ExpressionListContext params = (ExpressionListContext)expr.getChild(2);
+				return params.children.stream().anyMatch(p -> p.getText().equals("this"));
+			}
+			else if (expr.getChild(2) instanceof ExpressionContext){
+				ExpressionContext params = (ExpressionContext)expr.getChild(2);
+				return params.getText().equals("this");
+			}
+			return false;
+		}
+		else return false;
+	}
+
+	private void scanCtorStatements(ConstructorDeclarationContext tree) {
+		for (ParseTree c : childrenOf(tree)){
+			if (c instanceof ConstructorBodyContext){
+				ConstructorBodyContext ctorBody = (ConstructorBodyContext) c;
+				for (BlockStatementContext stmt : getStatements(ctorBody)){
+					scanCtorExpressions(stmt);
+				}
+			}
+		}
+	}
+
+	private void scanCtorExpressions(BlockStatementContext stmt) {
 		for (ExpressionContext expr : getExpressions((BlockStatementContext)stmt)){
 			if (isAssignment(expr)){
 				ExpressionContext rhs = (ExpressionContext) expr.getChild(2);

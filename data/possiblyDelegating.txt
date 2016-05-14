@@ -1,0 +1,27 @@
+class A{
+	public A(){
+	}
+	
+	public void a(){
+		// Possible delegation
+		B.foo(this);
+		bInstance.foo(this);
+		B.foo(notThis, this, alsoNotThis);
+		bInstance.foo(notThis, this, alsoNotThis);
+		a = B.foo(this);
+		b = bInstance.foo(this);
+		c = B.foo(notThis, this, alsoNotThis);
+		d = bInstance.foo(notThis, this, alsoNotThis);
+		
+		// Not possible delegation
+		foo(this);
+		B.foo(notThis);
+		bInstance.foo(notThis);
+		B.foo(notThis, alsoNotThis, yetAgainNotThis);
+		bInstance.foo(notThis, alsoNotThis, yetAgainNotThis);
+		a = B.foo(notThis);
+		b = bInstance.foo(notThis);
+		c = B.foo(notThis, alsoNotThis, yetAgainNotThis);
+		d = bInstance.foo(notThis, alsoNotThis, yetAgainNotThis);
+	}
+}
